@@ -1,94 +1,83 @@
+# assistant_core.py
+
 import json
 import os
-from datetime import datetime
-from intent_parser import recognize_intent
 
-# Pliki danych
-SHOPPING_FILE = "shopping_list.txt"
-REMINDERS_FILE = "reminders.json"
+shopping_file = "shopping_list.json"
+reminders_file = "reminders_list.json"
 
-# -------------------------------
-# Akcje
-# -------------------------------
+shopping_list = []
+reminders_list = []
 
-def add_to_shopping(item):
-    with open(SHOPPING_FILE, "a", encoding="utf-8") as f:
-        f.write(item + "\n")
-    print(f"✅ Dodano do listy zakupowej: {item}")
+# -------------------- ZAPIS / ODCZYT --------------------
 
-def show_shopping():
-    if not os.path.exists(SHOPPING_FILE):
-        print("🛒 Lista zakupów jest pusta.")
-        return
-    with open(SHOPPING_FILE, "r", encoding="utf-8") as f:
-        items = f.readlines()
-    print("🛒 Lista zakupów:")
-    for item in items:
-        print(f"- {item.strip()}")
+def load_data():
+    global shopping_list, reminders_list
+    if os.path.exists(shopping_file):
+        with open(shopping_file, "r", encoding="utf-8") as f:
+            shopping_list = json.load(f)
+    if os.path.exists(reminders_file):
+        with open(reminders_file, "r", encoding="utf-8") as f:
+            reminders_list = json.load(f)
 
-def remove_from_shopping(item):
-    if not os.path.exists(SHOPPING_FILE):
-        print("🛒 Lista jest już pusta.")
-        return
-    with open(SHOPPING_FILE, "r", encoding="utf-8") as f:
-        items = [line.strip() for line in f.readlines()]
-    if item in items:
-        items.remove(item)
-        with open(SHOPPING_FILE, "w", encoding="utf-8") as f:
-            for i in items:
-                f.write(i + "\n")
-        print(f"❌ Usunięto z listy zakupowej: {item}")
+def save_data():
+    with open(shopping_file, "w", encoding="utf-8") as f:
+        json.dump(shopping_list, f, ensure_ascii=False, indent=2)
+    with open(reminders_file, "w", encoding="utf-8") as f:
+        json.dump(reminders_list, f, ensure_ascii=False, indent=2)
+
+# -------------------- FUNKCJE LISTY ZAKUPÓW --------------------
+
+def add_to_shopping(text):
+    item = extract_item_from_text(text)
+    if item:
+        shopping_list.append(item)
+        save_data()
+        print(f"✅ Dodano do listy zakupów: {item}")
     else:
-        print(f"⚠️ Nie znaleziono na liście: {item}")
+        print("⚠️ Nie rozpoznano, co dodać do listy zakupów.")
+
+def remove_from_shopping(text):
+    item = extract_item_from_text(text)
+    if item in shopping_list:
+        shopping_list.remove(item)
+        save_data()
+        print(f"🗑️ Usunięto z listy zakupów: {item}")
+    else:
+        print("⚠️ Nie znaleziono tego elementu na liście.")
+
+def show_shopping(return_list=False):
+    if return_list:
+        return shopping_list
+    print("🛒 Lista zakupów:")
+    for item in shopping_list:
+        print(f"- {item}")
+
+# -------------------- FUNKCJE PRZYPOMNIEŃ --------------------
 
 def add_reminder(text):
-    now = datetime.now().isoformat()
-    reminder = {"text": text, "timestamp": now}
-    if os.path.exists(REMINDERS_FILE):
-        with open(REMINDERS_FILE, "r", encoding="utf-8") as f:
-            reminders = json.load(f)
-    else:
-        reminders = []
-    reminders.append(reminder)
-    with open(REMINDERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(reminders, f, indent=2, ensure_ascii=False)
-    print(f"🔔 Przypomnienie dodane: {text}")
+    reminders_list.append(text)
+    save_data()
+    print(f"⏰ Dodano przypomnienie: {text}")
 
-def show_reminders():
-    if not os.path.exists(REMINDERS_FILE):
-        print("🔕 Brak przypomnień.")
-        return
-    with open(REMINDERS_FILE, "r", encoding="utf-8") as f:
-        reminders = json.load(f)
+def show_reminders(return_list=False):
+    if return_list:
+        return reminders_list
     print("📅 Przypomnienia:")
-    for r in reminders:
-        print(f"- {r['text']} ({r['timestamp']})")
+    for reminder in reminders_list:
+        print(f"- {reminder}")
 
-# -------------------------------
-# Główna pętla
-# -------------------------------
+# -------------------- EKSTRAKCJA TEKSTU --------------------
 
-if __name__ == "__main__":
-    print("🎙️ Asystent gotowy. Wpisuj zdania (lub 'exit' by wyjść):\n")
+def extract_item_from_text(text):
+    words = text.lower().replace(",", "").split()
+    if not words:
+        return None
 
-    while True:
-        user_input = input("Ty: ")
-        if user_input.lower() in ["exit", "quit", "wyjdź"]:
-            break
+    ignore_words = {"dodaj", "do", "listy", "zakupów", "muszę", "kupić", "potrzebuję", "chcę", "wrzucam", "kupic"}
+    item_words = [w for w in words if w not in ignore_words]
+    return " ".join(item_words).strip() if item_words else None
 
-        intent, score = recognize_intent(user_input)
-        print(f"🔍 Intencja: {intent} (dopasowanie: {round(score * 100)}%)")
 
-        # Akcje na podstawie intencji
-        if intent == "add_shopping":
-            add_to_shopping(user_input)
-        elif intent == "remove_shopping":
-            remove_from_shopping(user_input)
-        elif intent == "show_shopping":
-            show_shopping()
-        elif intent == "add_reminder":
-            add_reminder(user_input)
-        elif intent == "show_reminders":
-            show_reminders()
-        else:
-            print("🤷‍♂️ Nie wiem jeszcze jak na to odpowiedzieć.")
+# Wczytaj dane przy uruchomieniu
+load_data()
